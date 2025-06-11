@@ -83,18 +83,58 @@ class Window(tk.Tk):
       def removeFromCanvas(self, args, kwargs):
             self.canvas.delete(args[0])
 
+      def getActionText(self, action):
+            if action == game.Creature.IDLE:
+                  return self.texts["idleAction"]
+            elif action == game.Creature.WANDERING:
+                  return self.texts["wanderingAction"]
+            elif action == game.Creature.GETTING_FOOD:
+                  return self.texts["gettingFoodAction"]
+            elif action == game.Creature.BEING_BRED or action == game.Creature.BREEDING:
+                  return self.texts["breedingAction"]
+            elif action == game.Creature.FIGHTING or action == game.Creature.IN_FIGHT:
+                  return self.texts["fightingAction"]
+            else:
+                  return "bla"
+            
+      def getValueColor(self, value):
+            color = "#"
+            redValue = hex(int((2.0 - value * 2) * 0xff))
+            if value <= 0.5:
+                  redValue = hex(0xff)
+                  
+            greenValue = hex(0xff)
+            if value <= 0.5:
+                  greenValue = hex(int((value * 2) * 0xff))
+
+            if len(redValue) <= 3:
+                  color += "0"
+            color += redValue[2:]
+
+            if len(greenValue) <= 3:
+                  color += "0"
+            color += greenValue[2:]
+            color += "00"
+            # print(color)
+            return color
+
       def selectSheep(self, sheep):
             self.recentlySelectedSheep = sheep
 
             self.sheepViewDeleteButton.config(
-                  command=lambda: self.deleteSheep(sheep.imageId)
+                  command=lambda: self.game.addCallback(self.game.markSheepDead, sheep)
             )
 
-            self.sheepViewIdVariable.set(self.texts["sheepIdLabel"] + str(sheep.imageId))
-            self.sheepViewNameVariable.set(self.texts["sheepNameLabel"] + str(sheep.name))
-            self.sheepViewHappinessVariable.set(self.texts["sheepHappinessLabel"] + str(sheep.happiness))
-            self.sheepViewHealthVariable.set(self.texts["sheepHealthLabel"] + str(sheep.health))
-            self.sheepViewHungerVariable.set(self.texts["sheepHungerLabel"] + str(sheep.hunger))
+            # self.sheepViewNameVariable.set(self.texts["sheepNameLabel"] + str(sheep.name))
+            self.sheepViewNameVariable.set(str(sheep.name))
+            # self.sheepViewActionVariable.set(self.texts["sheepActionLabel"] + str(sheep.action))
+            self.sheepViewActionVariable.set(self.getActionText(sheep.action))
+            # self.sheepViewHealthVariable.set(self.texts["sheepHealthLabel"] + str(sheep.health))
+            self.sheepViewHealthValue.config(background=self.getValueColor(sheep.health))
+            # self.sheepViewHappinessVariable.set(self.texts["sheepHappinessLabel"] + str(sheep.happiness))
+            self.sheepViewHappinessValue.config(background=self.getValueColor(sheep.happiness))
+            # self.sheepViewHungerVariable.set(self.texts["sheepHungerLabel"] + str(sheep.hunger))
+            self.sheepViewHungerValue.config(background=self.getValueColor(sheep.hunger))
 
             attitudesList = [str(k.name) + ": " + str(v) for k, v in sheep.attitudes.items()]
             attitudesList = sorted(
@@ -140,7 +180,6 @@ class Window(tk.Tk):
             self.viewFrame = ttk.Frame(self)
             self.viewFrame.config(width=Window.viewFrameWidth)
             self.viewFrame.config(height=Window.viewFrameHeight)
-            # self.viewFrame.config(background="green")
             self.viewFrame.config(borderwidth=0)
             
             self.canvas = tk.Canvas(self.viewFrame)
@@ -148,13 +187,11 @@ class Window(tk.Tk):
             self.canvas.config(height=Window.canvasHeight)
             self.canvas.config(background="green")
             self.canvas.config(borderwidth=0)
+            self.canvas.config(highlightthickness=0)
             
-            self.canvas.grid()
+            self.canvas.pack()
             
             game.Sheep.init()
-
-            # for i in range(0, self.game.startSheepNum):
-            #       self.newSheep()
 
             self.viewFrame.pack()
             self.game.start()
@@ -167,73 +204,110 @@ class Window(tk.Tk):
             self.footerFrame.columnconfigure(2, weight=5)
             
             self.createSheepView()
+            self.createFooterMenu()
             self.createLog()
 
-            button = ttk.Button(
-                  self.footerFrame, 
-                  text=self.texts["addButton"], 
-                  command=self.newSheep
-            ).grid(column=1, row=0)
-
-            label = ttk.Label(
-                  self.footerFrame, 
-                  text=self.texts["footerLabel"]
-            ).grid(column=2, row=0)
+            self.sheepViewFrame.grid(column=0, row=0)
+            self.footerMenuFrame.grid(column=1, row=0)
+            self.logFrame.grid(column=2, row=0)
 
             self.footerFrame.pack()
 
-
       def createSheepView(self):
             self.sheepViewFrame = ttk.Frame(self.footerFrame)
+
+            self.createDescriptionFrame()
+            self.createAttitudesFrame()
+            
+            self.sheepViewDescriptionFrame.grid(column=0, row=0)
+            self.sheepViewAttitudesFrame.grid(column=1, row=0)
+
+      def createDescriptionFrame(self):
             self.sheepViewDescriptionFrame = ttk.Frame(self.sheepViewFrame)
 
-            self.sheepViewIdVariable = tk.StringVar(self.sheepViewDescriptionFrame, value=self.texts["sheepIdLabel"])
-            self.sheepViewIdLabel = ttk.Label(
-                  self.sheepViewDescriptionFrame,
-                  textvariable=self.sheepViewIdVariable
-            )
-            # self.sheepViewIdLabel.grid(column=0, row=3, sticky=tk.W)
-            self.sheepViewIdLabel.pack()
-
-            self.sheepViewNameVariable = tk.StringVar(self.sheepViewDescriptionFrame, value=self.texts["sheepNameLabel"])
+            self.sheepViewNameVariable = tk.StringVar(self.sheepViewDescriptionFrame, value="")
             self.sheepViewNameLabel = ttk.Label(
                   self.sheepViewDescriptionFrame,
+                  text=self.texts["sheepNameLabel"]
+            )
+            self.sheepViewNameLabel.grid(column=0, row=0, sticky=tk.W)
+            # self.sheepViewNameLabel.pack()
+
+            self.sheepViewNameValue = ttk.Label(
+                  self.sheepViewDescriptionFrame,
+                  width=20,
                   textvariable=self.sheepViewNameVariable
             )
-            # self.sheepViewNameLabel.grid(column=0, row=0, sticky=tk.W)
-            self.sheepViewNameLabel.pack()
+            self.sheepViewNameValue.grid(column=1, row=0, sticky=tk.W)
+            
+            self.sheepViewActionVariable = tk.StringVar(self.sheepViewDescriptionFrame, value="")
+            self.sheepViewActionLabel = ttk.Label(
+                  self.sheepViewDescriptionFrame,
+                  text=self.texts["sheepActionLabel"]
+            )
+            self.sheepViewActionLabel.grid(column=0, row=1, sticky=tk.W)
+            # self.sheepViewActionLabel.pack()
 
-            self.sheepViewHealthVariable = tk.StringVar(self.sheepViewDescriptionFrame, value=self.texts["sheepHealthLabel"])
+            self.sheepViewActionValue = ttk.Label(
+                  self.sheepViewDescriptionFrame,
+                  width=20,
+                  textvariable=self.sheepViewActionVariable
+            )
+            self.sheepViewActionValue.grid(column=1, row=1, sticky=tk.W)
+            
+            # self.sheepViewHealthVariable = tk.StringVar(self.sheepViewDescriptionFrame, value=self.texts["sheepHealthLabel"])
             self.sheepViewHealthLabel = ttk.Label(
                   self.sheepViewDescriptionFrame,
-                  textvariable=self.sheepViewHealthVariable
+                  # textvariable=self.sheepViewHealthVariable
+                  text=self.texts["sheepHealthLabel"]
             )
-            # self.sheepViewHealthLabel.grid(column=0, row=1, sticky=tk.W)
-            self.sheepViewHealthLabel.pack()
+            # self.sheepViewHealthLabel.pack()
+            self.sheepViewHealthLabel.grid(column=0, row=2, sticky=tk.W)
 
-            self.sheepViewHappinessVariable = tk.StringVar(self.sheepViewDescriptionFrame, value=self.texts["sheepHappinessLabel"])
+            self.sheepViewHealthValue = ttk.Label(
+                  self.sheepViewDescriptionFrame,
+                  width=2
+            )
+            self.sheepViewHealthValue.grid(column=1, row=2, padx=1, pady=1, sticky=tk.W)
+
+            # self.sheepViewHappinessVariable = tk.StringVar(self.sheepViewDescriptionFrame, value=self.texts["sheepHappinessLabel"])
             self.sheepViewHappinessLabel = ttk.Label(
                   self.sheepViewDescriptionFrame,
-                  textvariable=self.sheepViewHappinessVariable
+                  # textvariable=self.sheepViewHappinessVariable
+                  text=self.texts["sheepHappinessLabel"]
             )
-            # self.sheepViewHappinessLabel.grid(column=0, row=1, sticky=tk.W)
-            self.sheepViewHappinessLabel.pack()
+            # self.sheepViewHappinessLabel.pack()
+            self.sheepViewHappinessLabel.grid(column=0, row=3, sticky=tk.W)
 
-            self.sheepViewHungerVariable = tk.StringVar(self.sheepViewDescriptionFrame, value=self.texts["sheepHungerLabel"])
+            self.sheepViewHappinessValue = ttk.Label(
+                  self.sheepViewDescriptionFrame,
+                  width=2
+            )
+            self.sheepViewHappinessValue.grid(column=1, row=3, padx=1, pady=1, sticky=tk.W)
+
+            # self.sheepViewHungerVariable = tk.StringVar(self.sheepViewDescriptionFrame, value=self.texts["sheepHungerLabel"])
             self.sheepViewHungerLabel = ttk.Label(
                   self.sheepViewDescriptionFrame,
-                  textvariable=self.sheepViewHungerVariable
+                  # textvariable=self.sheepViewHungerVariable
+                  text=self.texts["sheepHungerLabel"]
             )
-            # self.sheepViewHungerLabel.grid(column=0, row=2, sticky=tk.W)
-            self.sheepViewHungerLabel.pack()
+            # self.sheepViewHungerLabel.pack()
+            self.sheepViewHungerLabel.grid(column=0, row=4, sticky=tk.W)
+
+            self.sheepViewHungerValue = ttk.Label(
+                  self.sheepViewDescriptionFrame,
+                  width=2
+            )
+            self.sheepViewHungerValue.grid(column=1, row=4, padx=1, pady=1, sticky=tk.W)
 
             self.sheepViewDeleteButton = ttk.Button(
                   self.sheepViewDescriptionFrame,
                   text=self.texts["deleteButton"]
             )
-            # self.sheepViewDeleteButton.grid(column=0, row=4, sticky=tk.W)
-            self.sheepViewDeleteButton.pack()
+            # self.sheepViewDeleteButton.pack()
+            self.sheepViewDeleteButton.grid(column=0, row=5, sticky=tk.W)
 
+      def createAttitudesFrame(self):
             self.sheepViewAttitudesFrame = ttk.Frame(self.sheepViewFrame)
 
             self.sheepViewAttitudesLabel = ttk.Label(
@@ -256,11 +330,24 @@ class Window(tk.Tk):
                   command=self.setSortingOrder
             )
             self.sheepViewReversedSortingButton.pack()
-            
-            self.sheepViewDescriptionFrame.grid(column=0, row=0)
-            self.sheepViewAttitudesFrame.grid(column=1, row=0)
-            
-            self.sheepViewFrame.grid(column=0, row=0, sticky=tk.W)
+
+      def createFooterMenu(self):
+            self.footerMenuFrame = ttk.Frame(self.footerFrame)
+
+            self.footerMenulabel = ttk.Label(
+                  self.footerMenuFrame, 
+                  text=self.texts["footerLabel"],
+                  width=20,
+                  anchor="center"
+            )
+            self.footerMenulabel.pack()
+
+            self.footerMenuAddSheepButton = ttk.Button(
+                  self.footerMenuFrame, 
+                  text=self.texts["addButton"], 
+                  command=lambda: self.newSheep((), {})
+            )
+            self.footerMenuAddSheepButton.pack()
 
       def createLog(self):
             self.logFrame = ttk.Frame(self.footerFrame)
@@ -269,20 +356,16 @@ class Window(tk.Tk):
                   self.logFrame,
                   text=self.texts["logLabel"],
             )
-            self.logLabel.pack()
+            self.logLabel.pack(side=tk.TOP, fill=tk.NONE, expand=False)
 
             self.logVariable = tk.StringVar(self.logFrame)
             self.logList = tk.Listbox(
                   self.logFrame,
                   listvariable=self.logVariable,
                   width=50,
-                  height = 6,
+                  height=6,
             )
-            self.logList.pack()
-
-            self.logFrame.grid(column=3, row=0)
-
-
+            self.logList.pack(side=tk.TOP, fill=tk.NONE, expand=False)
 
 if __name__ == "__main__":
       window = Window()

@@ -70,6 +70,10 @@ class Game(Thread):
             self.sheepList.remove(toRemove)
             print(imageId)
 
+      def markSheepDead(self, args, kwargs):
+            sheep = args[0]
+            sheep.markDead()
+
       def deleteSheep(self, delSheep):
             toRemove = None
 
@@ -250,6 +254,15 @@ class Sheep(Creature):
 
       minAfterFightHealth = 0.5
       maxAfterFightHealth = 1.5
+      minRandHunger = 0.35
+      maxRandHunger = 1.0
+      minRandHappiness = 0.35
+      maxRandHappiness = 1.0
+
+      numberOfSheepAroundToBeHappy = 2
+      happinessIncreaseDelta = 0.001
+      happinessDeacreseDelta = 0.0003
+      healthDelta = 0.001
 
       namesNum = len(names.names)
       availableNames = [i for i in range(0, namesNum)]
@@ -258,10 +271,10 @@ class Sheep(Creature):
             super().__init__()
 
             self.name = Sheep.newName()
-            self.happiness = 0.5
+            self.happiness = Sheep.newHappiness()
             self.health = 1.0
             self.metabolism = Sheep.newRandomMetabolism()
-            self.hunger = 0.4
+            self.hunger = Sheep.newHunger()
             self.animationFrame = 0
             self.timeSpentNotFighting = 0
             self.timeSpentNotBreeding = 0
@@ -340,9 +353,9 @@ class Sheep(Creature):
       # override
       def handleCreature(self):
             if self.status == Creature.ALIVE:
-                  self.lowerHunger()
                   self.checkCooldowns()
                   self.checkNearbySheep()
+                  self.checkAttributes()
                   self.doAction()
             elif self.status == Creature.DEAD:
                   self.doDeathAction()
@@ -350,7 +363,7 @@ class Sheep(Creature):
       def checkNearbySheep(self):
             newList = []
             for sheep in self.game.sheepList:
-                  if sheep.status == Creature.ALIVE:
+                  if sheep != self and sheep.status == Creature.ALIVE:
                         distance = Game.distance(self.x, self.y, sheep.x, sheep.y)
                   
                         if distance < Sheep.nearbyDistance:
@@ -371,6 +384,10 @@ class Sheep(Creature):
                         self.readyToBreed = True
                         self.timeSpentNotBreeding = 0
 
+      def checkAttributes(self):
+            self.lowerHunger()
+            self.checkHappiness()
+            self.checkHealth()
 
       def wantsToFight(self):
             if not self.readyToFight:
@@ -381,7 +398,7 @@ class Sheep(Creature):
 
             while i < len(self.nearbySheep) and sheepToFight == None:
                   sheep = self.nearbySheep[i]
-                  if sheep != self:
+                  if sheep != self and (sheep.action == Creature.IDLE or sheep.action == Creature.WANDERING or sheep.action == Creature.GETTING_FOOD):
                         attitude = self.attitudes[sheep]
 
                         if attitude < 0.3:
@@ -403,7 +420,7 @@ class Sheep(Creature):
 
             while i < len(self.nearbySheep) and sheepToBreed == None:
                   sheep = self.nearbySheep[i]
-                  if sheep != self:
+                  if sheep != self and (sheep.action == Creature.IDLE or sheep.action == Creature.WANDERING or sheep.action == Creature.GETTING_FOOD):
                         if sheep.action != Creature.BREEDING:
                               attitude = self.attitudes[sheep]
 
@@ -495,10 +512,20 @@ class Sheep(Creature):
             amount = Sheep.minAfterFightHealth + random.random() * (Sheep.maxAfterFightHealth - Sheep.minAfterFightHealth)
             self.setHealth(self.health - amount)
 
+      def checkHealth(self):           
+            if self.happiness < 0.3:
+                  self.setHealth(self.health - Sheep.healthDelta * (1.0 - self.happiness))
+            # else:
+            #       self.setHealth(self.health + Sheep.healthDelta * (1.0 + self.happiness))
+
       def setHealth(self, amount):
-            self.health = amount
-            if self.health <= 0.0:
+            if amount <= 0.0:
+                  self.health = 0.0
                   self.markDead()
+            elif amount >= 1.0:
+                  self.health = 1.0
+            else:
+                  self.health = amount
       
       def markDead(self):
             self.changeImage(Sheep.image_dead)
@@ -590,9 +617,38 @@ class Sheep(Creature):
       
       def newRandomMetabolism():
             return random.random() / 10000
-            
+
+      def checkHappiness(self):
+            nearbyLikedSheepNum = 0
+            for sheep in self.nearbySheep:
+                  if self.attitudes[sheep] > 0.3:
+                        nearbyLikedSheepNum += 1
+
+            if nearbyLikedSheepNum >= Sheep.numberOfSheepAroundToBeHappy:
+                  self.raiseHappiness()
+            else:
+                  self.lowerHappiness()
+
+      def raiseHappiness(self):
+            newHappiness = self.happiness + Sheep.happinessIncreaseDelta
+            if newHappiness > 1.0:
+                  self.happiness = 1.0
+            else:
+                  self.happiness = newHappiness
+
+      def lowerHappiness(self):
+            newHappiness = self.happiness - Sheep.happinessDeacreseDelta
+            if newHappiness < 0.0:
+                  self.happiness = 0.0
+            else:
+                  self.happiness = newHappiness
+                  
       def lowerHunger(self):
-            self.hunger -= self.metabolism
+            newHunger = self.hunger - self.metabolism
+            if newHunger < 0.0:
+                  self.hunger = 0.0
+            else:
+                  self.hunger = newHunger
       
       def newName():
             if len(Sheep.availableNames) == 0:
@@ -603,6 +659,12 @@ class Sheep(Creature):
             del Sheep.availableNames[index]
 
             return name
+
+      def newHunger():
+            return random.random() * (Sheep.maxRandHunger - Sheep.minRandHunger) + Sheep.minRandHunger
+
+      def newHappiness():
+            return random.random() * (Sheep.maxRandHappiness - Sheep.minRandHappiness) + Sheep.minRandHappiness
 
       def newAttitude(self, sheep):
             number = hash(self.name) + hash(sheep.name)
